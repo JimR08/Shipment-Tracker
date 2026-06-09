@@ -1,0 +1,833 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"/>
+<meta name="mobile-web-app-capable" content="yes"/>
+<meta name="apple-mobile-web-app-capable" content="yes"/>
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"/>
+<title>ShipTrack</title>
+<script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
+<link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500;600&display=swap" rel="stylesheet"/>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+  html, body { height: 100%; background: #080c10; font-family: 'DM Mono', monospace; color: #fff; overscroll-behavior: none; }
+
+  :root {
+    --teal:       #00897b;
+    --teal-dark:  #00695c;
+    --teal-dim:   rgba(0,150,136,0.15);
+    --teal-line:  rgba(0,150,136,0.3);
+    --teal-text:  #4db6ac;
+    --orange:     #f57c00;
+    --orange-dk:  #e65100;
+    --red:        #c62828;
+    --muted:      #37474f;
+    --label:      #546e7a;
+    --card-bg:    rgba(255,255,255,0.03);
+    --card-bdr:   rgba(255,255,255,0.07);
+    --input-bg:   rgba(255,255,255,0.04);
+  }
+
+  /* ── Layout ── */
+  #app { max-width: 480px; margin: 0 auto; min-height: 100vh; padding-bottom: 72px;
+         background: radial-gradient(ellipse at 20% 0%, rgba(0,105,92,0.15) 0%, transparent 60%), #080c10; }
+
+  /* ── Header ── */
+  .header { display:flex; justify-content:space-between; align-items:center; padding:20px 18px 0; }
+  .logo   { font-size:26px; letter-spacing:3px; color:#e0f2f1; font-weight:600; }
+  .sub    { font-size:9px; color:var(--muted); letter-spacing:2px; margin-top:2px; }
+  .header-right { display:flex; gap:8px; align-items:center; }
+  .status-pill { border-radius:6px; padding:4px 9px; font-size:9px; letter-spacing:1px; font-weight:600; }
+  .status-live { background:rgba(0,150,136,0.15); border:1px solid var(--teal-line); color:var(--teal-text); }
+  .status-off  { background:rgba(198,40,40,0.15); border:1px solid rgba(198,40,40,0.3); color:#ef5350; }
+  .icon-btn    { background:rgba(255,255,255,0.05); border:1px solid var(--card-bdr); border-radius:8px;
+                 padding:8px 11px; color:#757575; cursor:pointer; font-size:15px; }
+
+  /* ── Sheet strip ── */
+  .sheet-strip { margin:12px 18px 0; background:rgba(255,255,255,0.02); border:1px solid rgba(255,255,255,0.05);
+                 border-radius:8px; padding:8px 12px; font-size:10px; color:#37474f;
+                 display:flex; align-items:center; gap:6px; overflow:hidden; }
+  .sheet-strip span:last-child { color:var(--label); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+
+  /* ── Tabs ── */
+  .tabs { display:flex; background:rgba(255,255,255,0.03); border-radius:10px; padding:4px; margin:16px 18px 0; }
+  .tab-btn { flex:1; padding:9px; border-radius:7px; border:none; cursor:pointer; background:transparent;
+             color:#424242; font-family:'DM Mono',monospace; font-size:11px; font-weight:600;
+             letter-spacing:1px; transition:all 0.2s; }
+  .tab-btn.active { background:var(--teal-dark); color:#fff; }
+
+  /* ── Panels ── */
+  .panel { display:none; padding:16px 18px 0; animation:fadeUp 0.25s ease; }
+  .panel.active { display:block; }
+  @keyframes fadeUp { from{opacity:0;transform:translateY(12px)} to{opacity:1;transform:translateY(0)} }
+
+  /* ── Form elements ── */
+  .field-label { display:block; color:var(--muted); font-size:10px; letter-spacing:2px; margin-bottom:6px; }
+  .field-input { width:100%; background:var(--input-bg); border:1px solid var(--card-bdr); border-radius:10px;
+                 padding:13px 14px; color:#fff; font-family:'DM Mono',monospace; font-size:13px;
+                 transition:border 0.2s; }
+  .field-input:focus { border-color:rgba(0,150,136,0.5); outline:none; }
+  .field-input::placeholder { color:#2a2a2a; }
+  select.field-input { cursor:pointer; appearance:none;
+    background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8'%3E%3Cpath d='M0 0l6 8 6-8z' fill='%23546e7a'/%3E%3C/svg%3E");
+    background-repeat:no-repeat; background-position:right 14px center;
+    background-color:var(--input-bg); }
+  select.field-input option { background:#0d1117; }
+  textarea.field-input { resize:none; line-height:1.7; }
+  .mb14 { margin-bottom:14px; }
+  .mb20 { margin-bottom:20px; }
+
+  /* ── Scan button ── */
+  .scan-btn { width:100%; margin-bottom:14px; background:linear-gradient(135deg,rgba(0,105,92,0.25),rgba(0,77,64,0.25));
+              border:2px solid rgba(0,150,136,0.3); border-radius:16px; cursor:pointer; overflow:hidden;
+              transition:all 0.3s; padding:0; }
+  .scan-btn.scanned { background:linear-gradient(135deg,var(--teal),var(--teal-dark)); border-color:var(--teal-text); }
+  .scan-btn-inner { padding:20px; display:flex; align-items:center; gap:14px; }
+  .scan-icon { width:50px; height:50px; border-radius:12px; background:rgba(0,150,136,0.12);
+               display:flex; align-items:center; justify-content:center; font-size:24px; flex-shrink:0; }
+  .scan-title { font-size:20px; letter-spacing:2px; color:var(--teal-text); font-weight:600; }
+  .scan-sub   { font-size:10px; color:var(--muted); margin-top:3px; }
+  .scan-line  { height:3px; background:linear-gradient(90deg,transparent,var(--teal-text),transparent); opacity:0.3; }
+  .scan-btn.scanned .scan-title { color:#fff; }
+  .scan-btn.scanned .scan-sub   { color:rgba(255,255,255,0.6); }
+  .scan-btn.scanned .scan-line  { opacity:1; }
+
+  /* ── Divider ── */
+  .divider { display:flex; align-items:center; gap:10px; margin-bottom:14px; }
+  .divider-line { flex:1; height:1px; background:rgba(255,255,255,0.05); }
+  .divider-text { font-size:9px; color:var(--muted); letter-spacing:2px; }
+
+  /* ── Input with clear btn ── */
+  .input-wrap { position:relative; }
+  .clear-btn { position:absolute; right:12px; top:50%; transform:translateY(-50%);
+               background:none; border:none; color:#424242; cursor:pointer; font-size:14px; padding:4px; }
+
+  /* ── Preview card ── */
+  .preview-card { background:rgba(0,105,92,0.08); border:1px solid rgba(0,150,136,0.2);
+                  border-radius:10px; padding:12px 14px; margin-bottom:16px; }
+  .preview-title { color:var(--muted); font-size:9px; letter-spacing:2px; margin-bottom:8px; }
+  .preview-grid  { display:grid; grid-template-columns:auto 1fr; gap:5px 12px; font-size:11px; }
+  .preview-key   { color:var(--muted); }
+  .preview-val   { color:#e0e0e0; word-break:break-all; }
+  .preview-val.teal   { color:var(--teal-text); }
+  .preview-val.green  { color:var(--teal-text); font-weight:600; }
+
+  /* ── Primary buttons ── */
+  .btn-pack { width:100%; padding:16px; background:linear-gradient(135deg,var(--teal),var(--teal-dark));
+              border:none; border-radius:12px; color:#fff; font-family:'DM Mono',monospace;
+              font-size:14px; font-weight:600; cursor:pointer; letter-spacing:2px;
+              box-shadow:0 4px 20px rgba(0,137,123,0.35); transition:all 0.2s; }
+  .btn-pack:disabled { background:rgba(0,105,92,0.2); color:var(--muted); box-shadow:none; cursor:not-allowed; }
+  .btn-pick { width:100%; padding:16px; background:linear-gradient(135deg,var(--orange),var(--orange-dk));
+              border:none; border-radius:12px; color:#fff; font-family:'DM Mono',monospace;
+              font-size:14px; font-weight:600; cursor:pointer; letter-spacing:2px;
+              box-shadow:0 4px 20px rgba(245,124,0,0.3); transition:all 0.2s; }
+  .btn-pick:disabled { opacity:0.5; cursor:not-allowed; }
+
+  /* ── POD upload ── */
+  .pod-info { background:rgba(255,160,0,0.06); border:1px solid rgba(255,160,0,0.15);
+              border-radius:10px; padding:10px 14px; margin-bottom:16px;
+              font-size:11px; color:#ffa726; line-height:1.6; }
+  .upload-zone { border:2px dashed rgba(255,255,255,0.08); border-radius:12px; padding:28px 20px;
+                 text-align:center; cursor:pointer; transition:all 0.2s; margin-bottom:12px; }
+  .upload-zone:hover { border-color:rgba(0,150,136,0.4); }
+  .upload-zone.has-file { border-color:rgba(0,150,136,0.5); background:rgba(0,150,136,0.05); }
+  .upload-icon { font-size:30px; margin-bottom:8px; }
+  .upload-name { color:#4db6ac; font-size:11px; }
+  .upload-hint { color:#424242; font-size:11px; }
+  .pod-preview { border-radius:10px; overflow:hidden; border:1px solid rgba(0,150,136,0.2); margin-bottom:14px; }
+  .pod-preview img { width:100%; max-height:180px; object-fit:cover; display:block; }
+  .pod-file-badge { background:rgba(0,150,136,0.05); border:1px solid rgba(0,150,136,0.15);
+                    border-radius:10px; padding:12px 14px; font-size:11px; color:var(--teal-text); margin-bottom:14px; }
+  .queue-count { font-size:11px; color:var(--label); margin-bottom:12px; }
+
+  /* ── Log ── */
+  .log-header { font-size:10px; color:var(--muted); letter-spacing:2px; margin-bottom:12px; }
+  .log-empty  { text-align:center; padding:60px 20px; color:#263238; font-size:12px; }
+  .log-empty-icon { font-size:36px; margin-bottom:12px; opacity:0.3; }
+  .log-row { background:var(--card-bg); border:1px solid var(--card-bdr); border-radius:10px;
+             padding:12px 14px; margin-bottom:8px; display:flex; justify-content:space-between; align-items:flex-start; }
+  .log-left { flex:1; min-width:0; }
+  .log-badge { border-radius:5px; padding:2px 8px; font-size:10px; font-weight:700; letter-spacing:1px; display:inline-block; margin-bottom:6px; }
+  .log-badge.packed { background:rgba(0,150,136,0.2); color:var(--teal-text); border:1px solid rgba(77,182,172,0.4); }
+  .log-badge.picked { background:rgba(255,160,0,0.2);  color:#ffca28;          border:1px solid rgba(255,202,40,0.4); }
+  .log-id   { font-size:12px; color:#e0e0e0; word-break:break-all; }
+  .log-id span { color:var(--teal-text); font-size:10px; }
+  .log-meta { font-size:10px; color:#616161; margin-top:4px; }
+  .log-icon { width:34px; height:34px; border-radius:50%; flex-shrink:0; margin-left:10px;
+              display:flex; align-items:center; justify-content:center; font-size:16px; }
+  .log-icon.packed { background:rgba(0,150,136,0.12); }
+  .log-icon.picked { background:rgba(255,160,0,0.12); }
+
+  /* ── Bottom nav ── */
+  .bottom-nav { position:fixed; bottom:0; left:50%; transform:translateX(-50%);
+                width:100%; max-width:480px; background:rgba(8,12,16,0.97);
+                border-top:1px solid rgba(255,255,255,0.05); backdrop-filter:blur(20px);
+                display:flex; padding:6px 0 10px; z-index:100; }
+  .nav-btn { flex:1; background:none; border:none; cursor:pointer;
+             display:flex; flex-direction:column; align-items:center; gap:3px; padding:6px 0; }
+  .nav-icon  { font-size:18px; opacity:0.3; transition:opacity 0.2s; }
+  .nav-label { font-family:'DM Mono',monospace; font-size:9px; letter-spacing:2px; color:var(--muted); transition:color 0.2s; }
+  .nav-dot   { width:16px; height:2px; background:var(--teal-text); border-radius:1px; display:none; }
+  .nav-btn.active .nav-icon  { opacity:1; }
+  .nav-btn.active .nav-label { color:var(--teal-text); font-weight:600; }
+  .nav-btn.active .nav-dot   { display:block; }
+
+  /* ── Scanner overlay ── */
+  #scanner-overlay { display:none; position:fixed; inset:0; background:#000; z-index:900; flex-direction:column; }
+  #scanner-overlay.open { display:flex; }
+  .scanner-topbar { display:flex; justify-content:space-between; align-items:center;
+                    padding:16px 18px; background:rgba(0,0,0,0.7); flex-shrink:0; }
+  .scanner-label { font-size:13px; color:var(--teal-text); letter-spacing:1px; }
+  .scanner-buttons { display:flex; gap:10px; }
+  .torch-btn { background:rgba(255,255,255,0.1); border:1px solid rgba(255,255,255,0.15);
+               border-radius:8px; padding:7px 12px; color:#9e9e9e; font-family:'DM Mono',monospace;
+               font-size:11px; cursor:pointer; }
+  .torch-btn.on { color:#ffca28; }
+  .close-scanner { background:rgba(198,40,40,0.2); border:1px solid rgba(198,40,40,0.3);
+                   border-radius:8px; padding:7px 12px; color:#ef5350;
+                   font-family:'DM Mono',monospace; font-size:11px; cursor:pointer; }
+  .scanner-body { flex:1; position:relative; overflow:hidden; }
+  #reader { width:100%; height:100%; }
+  /* Override html5-qrcode default styles */
+  #reader video { width:100%!important; height:100%!important; object-fit:cover!important; }
+  #reader > div:first-child { border:none!important; padding:0!important; }
+  /* Hide the built-in shaded region — we do our own overlay */
+  #reader__scan_region { display:none!important; }
+  #reader__dashboard { display:none!important; }
+
+  .scan-frame { position:absolute; top:50%; left:50%; transform:translate(-50%,-55%);
+                width:72%; max-width:280px; height:120px; pointer-events:none; }
+  .frame-corner { position:absolute; width:22px; height:22px; }
+  .frame-corner.tl { top:0; left:0;    border-top:3px solid var(--teal-text); border-left:3px solid var(--teal-text); }
+  .frame-corner.tr { top:0; right:0;   border-top:3px solid var(--teal-text); border-right:3px solid var(--teal-text); }
+  .frame-corner.bl { bottom:0; left:0; border-bottom:3px solid var(--teal-text); border-left:3px solid var(--teal-text); }
+  .frame-corner.br { bottom:0; right:0;border-bottom:3px solid var(--teal-text); border-right:3px solid var(--teal-text); }
+  .scan-line-anim { position:absolute; left:0; right:0; height:2px;
+                    background:linear-gradient(90deg,transparent,var(--teal-text),transparent);
+                    animation:scanLine 2s ease-in-out infinite; top:50%; }
+  @keyframes scanLine { 0%{top:5%} 50%{top:90%} 100%{top:5%} }
+  .scanner-status { position:absolute; bottom:24px; left:50%; transform:translateX(-50%);
+                    background:rgba(0,0,0,0.75); border-radius:20px; padding:8px 18px;
+                    font-size:11px; color:#80cbc4; white-space:nowrap;
+                    border:1px solid rgba(77,182,172,0.2); }
+
+  /* ── Setup modal ── */
+  #setup-modal { display:none; position:fixed; inset:0; background:rgba(0,0,0,0.9); z-index:1000;
+                 justify-content:center; align-items:center; padding:20px; }
+  #setup-modal.open { display:flex; }
+  .modal-box { background:#0d1117; border:1px solid rgba(255,255,255,0.1); border-radius:16px;
+               padding:24px; width:100%; max-width:400px; }
+  .modal-title { font-size:15px; margin-bottom:6px; }
+  .modal-desc  { color:#616161; font-size:11px; margin-bottom:16px; line-height:1.7; }
+  .modal-desc strong { color:#80cbc4; }
+  .modal-input { width:100%; background:#161b22; border:1px solid rgba(255,255,255,0.1);
+                 border-radius:8px; padding:11px 12px; color:#fff; font-family:'DM Mono',monospace;
+                 font-size:11px; margin-bottom:14px; }
+  .modal-input:focus { outline:none; border-color:rgba(0,150,136,0.4); }
+  .modal-btns { display:flex; gap:8px; }
+  .btn-cancel { flex:1; background:rgba(255,255,255,0.05); border:1px solid var(--card-bdr);
+                border-radius:8px; color:#757575; font-family:'DM Mono',monospace; font-size:12px; padding:10px; cursor:pointer; }
+  .btn-save   { flex:2; background:#00695c; border:none; border-radius:8px; color:#fff;
+                font-family:'DM Mono',monospace; font-size:13px; padding:10px; cursor:pointer; font-weight:700; }
+
+  /* ── Toast ── */
+  #toast-container { position:fixed; bottom:90px; left:50%; transform:translateX(-50%);
+                     z-index:9999; display:flex; flex-direction:column; gap:8px;
+                     width:90vw; max-width:420px; pointer-events:none; }
+  .toast { border-radius:12px; padding:13px 16px; font-size:13px; font-weight:500;
+           box-shadow:0 6px 28px rgba(0,0,0,0.5); display:flex; align-items:center; gap:10px;
+           animation:slideUp 0.25s ease; }
+  .toast.success { background:#00695c; color:#fff; }
+  .toast.error   { background:#b71c1c; color:#fff; }
+  .toast.info    { background:#1a237e; color:#fff; }
+  @keyframes slideUp { from{opacity:0;transform:translateY(16px)} to{opacity:1;transform:translateY(0)} }
+
+  /* ── Raw value strip ── */
+  .raw-strip { background:rgba(255,255,255,0.02); border:1px solid rgba(255,255,255,0.05);
+               border-radius:8px; padding:7px 12px; margin-bottom:10px;
+               font-size:10px; color:var(--label); word-break:break-all; }
+  .raw-strip span { color:var(--muted); }
+</style>
+</head>
+<body>
+
+<div id="app">
+
+  <!-- HEADER -->
+  <div class="header">
+    <div>
+      <div class="logo">SHIPTRACK</div>
+      <div class="sub">DAILY DISPATCH TRACKER</div>
+    </div>
+    <div class="header-right">
+      <div class="status-pill status-off" id="status-pill">● NO SHEET</div>
+      <button class="icon-btn" onclick="openSetup()">⚙</button>
+    </div>
+  </div>
+
+  <!-- SHEET STRIP -->
+  <div class="sheet-strip">
+    <span>📊</span>
+    <span>Sheet:</span>
+    <span>Daily Shipment Dispatch Tracker</span>
+  </div>
+
+  <!-- TABS -->
+  <div class="tabs">
+    <button class="tab-btn active" onclick="switchTab('scan',this)">📦 PACK</button>
+    <button class="tab-btn"        onclick="switchTab('pod', this)">✅ POD</button>
+    <button class="tab-btn"        onclick="switchTab('log', this)">🗒 LOG</button>
+  </div>
+
+  <!-- ══ PACK PANEL ══ -->
+  <div class="panel active" id="panel-scan">
+
+    <!-- Big scan button -->
+    <button class="scan-btn" id="scan-btn" onclick="openScanner()">
+      <div class="scan-btn-inner">
+        <div class="scan-icon" id="scan-icon">▦</div>
+        <div>
+          <div class="scan-title" id="scan-title">SCAN BARCODE</div>
+          <div class="scan-sub"   id="scan-sub">Tap to open camera scanner</div>
+        </div>
+      </div>
+      <div class="scan-line"></div>
+    </button>
+
+    <!-- Divider -->
+    <div class="divider">
+      <div class="divider-line"></div>
+      <div class="divider-text">OR TYPE MANUALLY</div>
+      <div class="divider-line"></div>
+    </div>
+
+    <!-- Raw value -->
+    <div class="raw-strip" id="raw-strip" style="display:none">
+      <span>RAW: </span><span id="raw-value"></span>
+    </div>
+
+    <!-- Shipment ID -->
+    <div class="mb14">
+      <label class="field-label">SHIPMENT ID</label>
+      <div class="input-wrap">
+        <input class="field-input" id="shipment-id" type="text" placeholder="17645044139291258667"
+               oninput="onIdChange()" autocomplete="off" inputmode="text"/>
+        <button class="clear-btn" id="clear-btn" onclick="clearId()" style="display:none">✕</button>
+      </div>
+    </div>
+
+    <!-- Delivery Partner -->
+    <div class="mb20">
+      <label class="field-label">DELIVERY PARTNER</label>
+      <select class="field-input" id="dp-select">
+        <option>TMS Nexus</option>
+        <option>Bluedart</option>
+        <option>Blitz NDD</option>
+        <option>Borzo</option>
+        <option>Delhivery</option>
+        <option>XpressBees</option>
+        <option>Ecom Express</option>
+        <option>FedEx</option>
+        <option>Shadowfax</option>
+        <option>Ekart</option>
+        <option>Other</option>
+      </select>
+    </div>
+
+    <!-- Preview -->
+    <div class="preview-card" id="preview-card" style="display:none">
+      <div class="preview-title">WILL BE WRITTEN TO SHEET</div>
+      <div class="preview-grid">
+        <span class="preview-key">Date</span>   <span class="preview-val teal"  id="prev-date"></span>
+        <span class="preview-key">ID</span>     <span class="preview-val"       id="prev-id"></span>
+        <span class="preview-key">Status</span> <span class="preview-val green">Packed</span>
+        <span class="preview-key">DP</span>     <span class="preview-val"       id="prev-dp"></span>
+        <span class="preview-key">Time</span>   <span class="preview-val teal">at scan</span>
+      </div>
+    </div>
+
+    <button class="btn-pack" id="pack-btn" onclick="handlePack()" disabled>📦 &nbsp;MARK AS PACKED</button>
+  </div>
+
+  <!-- ══ POD PANEL ══ -->
+  <div class="panel" id="panel-pod">
+    <div class="pod-info">
+      Upload POD document and enter Shipment IDs picked up. Status will update to <strong>Picked</strong> in the sheet.
+    </div>
+
+    <label class="field-label">SHIPMENT IDs &nbsp;(one per line or comma separated)</label>
+    <textarea class="field-input mb14" id="pod-ids" rows="5"
+              placeholder="17645044139291258667&#10;17645091696501700979&#10;..."
+              oninput="updateQueueCount()"></textarea>
+
+    <div class="queue-count" id="queue-count" style="display:none"></div>
+
+    <label class="field-label">POD DOCUMENT</label>
+    <div class="upload-zone" id="upload-zone" onclick="document.getElementById('pod-file').click()">
+      <div class="upload-icon" id="upload-icon">📎</div>
+      <div id="upload-text" class="upload-hint">Tap to upload POD image or PDF</div>
+    </div>
+    <input type="file" id="pod-file" accept="image/*,application/pdf" style="display:none" onchange="onPodFile(event)"/>
+
+    <div id="pod-preview-wrap" style="display:none"></div>
+
+    <button class="btn-pick" id="pick-btn" onclick="handlePick()">✅ &nbsp;MARK AS PICKED</button>
+  </div>
+
+  <!-- ══ LOG PANEL ══ -->
+  <div class="panel" id="panel-log">
+    <div id="log-container">
+      <div class="log-empty">
+        <div class="log-empty-icon">📋</div>
+        No activity this session.<br/>Scan a shipment to get started.
+      </div>
+    </div>
+  </div>
+
+</div><!-- /app -->
+
+<!-- BOTTOM NAV -->
+<div class="bottom-nav">
+  <button class="nav-btn active" id="nav-scan" onclick="switchTab('scan', null, 'nav-scan')">
+    <span class="nav-icon">📦</span>
+    <span class="nav-label">PACK</span>
+    <div class="nav-dot"></div>
+  </button>
+  <button class="nav-btn" id="nav-pod" onclick="switchTab('pod', null, 'nav-pod')">
+    <span class="nav-icon">✅</span>
+    <span class="nav-label">POD</span>
+    <div class="nav-dot"></div>
+  </button>
+  <button class="nav-btn" id="nav-log" onclick="switchTab('log', null, 'nav-log')">
+    <span class="nav-icon">🗒</span>
+    <span class="nav-label">LOG</span>
+    <div class="nav-dot"></div>
+  </button>
+</div>
+
+<!-- SCANNER OVERLAY -->
+<div id="scanner-overlay">
+  <div class="scanner-topbar">
+    <div class="scanner-label">SCAN LABEL</div>
+    <div class="scanner-buttons">
+      <button class="torch-btn" id="torch-btn" onclick="toggleTorch()">⚡ TORCH</button>
+      <button class="close-scanner" onclick="closeScanner()">✕ Close</button>
+    </div>
+  </div>
+  <div class="scanner-body">
+    <div id="reader"></div>
+    <div class="scan-frame">
+      <div class="frame-corner tl"></div>
+      <div class="frame-corner tr"></div>
+      <div class="frame-corner bl"></div>
+      <div class="frame-corner br"></div>
+      <div class="scan-line-anim"></div>
+    </div>
+    <div class="scanner-status" id="scanner-status">Initialising camera…</div>
+  </div>
+</div>
+
+<!-- SETUP MODAL -->
+<div id="setup-modal">
+  <div class="modal-box">
+    <div class="modal-title">⚙ Google Sheet Setup</div>
+    <p class="modal-desc">
+      Connect to your <strong>Daily Shipment Dispatch Tracker</strong>.<br/><br/>
+      1. Open Sheet → Extensions → Apps Script<br/>
+      2. Paste ShipTrack-AppsScript.js<br/>
+      3. Deploy → Web App (Execute as Me, Access Anyone)<br/>
+      4. Copy the Web App URL and paste below
+    </p>
+    <input class="modal-input" id="script-url-input" type="url" placeholder="https://script.google.com/macros/s/..."/>
+    <div class="modal-btns">
+      <button class="btn-cancel" onclick="closeSetup()">Cancel</button>
+      <button class="btn-save"   onclick="saveSetup()">Save</button>
+    </div>
+  </div>
+</div>
+
+<!-- TOAST CONTAINER -->
+<div id="toast-container"></div>
+
+<script>
+// ─── State ────────────────────────────────────────────────────────────────────
+let scriptUrl   = localStorage.getItem('shiptrack_url') || '';
+let podFileObj  = null;
+let html5Qr     = null;
+let torchOn     = false;
+let scannerOpen = false;
+let logEntries  = [];
+let currentTrack = null;
+
+// ─── Init ─────────────────────────────────────────────────────────────────────
+window.onload = () => {
+  if (scriptUrl) {
+    document.getElementById('script-url-input').value = scriptUrl;
+    updateStatusPill();
+  }
+};
+
+// ─── Utils ────────────────────────────────────────────────────────────────────
+function fmtDate(d) {
+  return d.toLocaleDateString('en-IN', {day:'2-digit', month:'2-digit', year:'numeric'});
+}
+function fmtTime(d) {
+  return d.toLocaleTimeString('en-IN', {hour:'2-digit', minute:'2-digit', second:'2-digit', hour12:true});
+}
+function fmtFull(d) { return fmtDate(d) + ' ' + fmtTime(d); }
+
+function parseShipmentId(raw) {
+  if (!raw) return '';
+  const longNum = raw.match(/\b\d{14,}\b/);
+  if (longNum) return longNum[0];
+  const lines = raw.split(/[\n,|;\t]+/).map(l => l.trim()).filter(Boolean);
+  return lines[0] || raw.trim();
+}
+
+async function postToSheet(payload) {
+  if (!scriptUrl) return;
+  try {
+    await fetch(scriptUrl, {
+      method:'POST', mode:'no-cors',
+      headers:{'Content-Type':'application/json'},
+      body: JSON.stringify(payload)
+    });
+  } catch(e) { console.warn('Sheet POST failed', e); }
+}
+
+// ─── Toast ────────────────────────────────────────────────────────────────────
+let toastTimer = {};
+function showToast(msg, type='success') {
+  const c  = document.getElementById('toast-container');
+  const el = document.createElement('div');
+  const id = Date.now();
+  el.className = 'toast ' + type;
+  el.innerHTML = `<span>${type==='success'?'✓':type==='error'?'✕':'ℹ'}</span><span>${msg}</span>`;
+  el.dataset.id = id;
+  c.appendChild(el);
+  toastTimer[id] = setTimeout(() => { el.remove(); }, 3500);
+}
+
+// ─── Tabs ─────────────────────────────────────────────────────────────────────
+function switchTab(name, tabEl, navId) {
+  // panels
+  document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+  document.getElementById('panel-' + name).classList.add('active');
+  // tab buttons
+  document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+  if (tabEl) tabEl.classList.add('active');
+  // nav
+  document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
+  const navMap = {scan:'nav-scan', pod:'nav-pod', log:'nav-log'};
+  document.getElementById(navId || navMap[name]).classList.add('active');
+  // Sync tab buttons ↔ nav (when called from nav)
+  const tabIdx = {scan:0, pod:1, log:2};
+  if (!tabEl) {
+    const tabs = document.querySelectorAll('.tab-btn');
+    tabs[tabIdx[name]].classList.add('active');
+  }
+}
+
+// ─── Status pill ──────────────────────────────────────────────────────────────
+function updateStatusPill() {
+  const el = document.getElementById('status-pill');
+  if (scriptUrl) { el.textContent='● LIVE';     el.className='status-pill status-live'; }
+  else           { el.textContent='● NO SHEET'; el.className='status-pill status-off';  }
+}
+
+// ─── Setup modal ──────────────────────────────────────────────────────────────
+function openSetup()  { document.getElementById('setup-modal').classList.add('open'); }
+function closeSetup() { document.getElementById('setup-modal').classList.remove('open'); }
+function saveSetup()  {
+  scriptUrl = document.getElementById('script-url-input').value.trim();
+  localStorage.setItem('shiptrack_url', scriptUrl);
+  updateStatusPill();
+  closeSetup();
+  showToast('Sheet URL saved!', 'success');
+}
+
+// ─── Shipment ID field ────────────────────────────────────────────────────────
+function onIdChange() {
+  const val = document.getElementById('shipment-id').value.trim();
+  document.getElementById('clear-btn').style.display    = val ? 'block' : 'none';
+  document.getElementById('pack-btn').disabled           = !val;
+  document.getElementById('preview-card').style.display  = val ? 'block' : 'none';
+  if (val) {
+    document.getElementById('prev-date').textContent = fmtDate(new Date());
+    document.getElementById('prev-id').textContent   = val;
+    document.getElementById('prev-dp').textContent   = document.getElementById('dp-select').value;
+  }
+}
+function clearId() {
+  document.getElementById('shipment-id').value = '';
+  document.getElementById('raw-strip').style.display = 'none';
+  onIdChange();
+}
+
+// ─── Scanner ──────────────────────────────────────────────────────────────────
+function openScanner() {
+  document.getElementById('scanner-overlay').classList.add('open');
+  scannerOpen = true;
+  startHtml5Qr();
+}
+
+function closeScanner() {
+  stopHtml5Qr();
+  document.getElementById('scanner-overlay').classList.remove('open');
+  scannerOpen = false;
+  torchOn = false;
+  document.getElementById('torch-btn').classList.remove('on');
+  document.getElementById('torch-btn').textContent = '⚡ TORCH';
+  currentTrack = null;
+}
+
+function setStatus(msg) {
+  document.getElementById('scanner-status').textContent = msg;
+}
+
+function startHtml5Qr() {
+  setStatus('Starting camera…');
+
+  // Destroy previous instance cleanly
+  if (html5Qr) {
+    html5Qr.clear().catch(()=>{});
+    html5Qr = null;
+  }
+
+  const config = {
+    fps: 15,
+    qrbox: { width: Math.min(260, window.innerWidth * 0.68), height: 110 },
+    aspectRatio: window.innerHeight / window.innerWidth,
+    rememberLastUsedCamera: true,
+    supportedScanTypes: [
+      Html5QrcodeScanType.SCAN_TYPE_CAMERA
+    ],
+    formatsToSupport: [
+      Html5QrcodeSupportedFormats.CODE_128,
+      Html5QrcodeSupportedFormats.CODE_39,
+      Html5QrcodeSupportedFormats.QR_CODE,
+      Html5QrcodeSupportedFormats.DATA_MATRIX,
+      Html5QrcodeSupportedFormats.EAN_13,
+      Html5QrcodeSupportedFormats.ITF,
+      Html5QrcodeSupportedFormats.PDF_417,
+      Html5QrcodeSupportedFormats.AZTEC,
+    ],
+    showTorchButtonIfSupported: false,  // we handle our own torch button
+    showZoomSliderIfSupported: false,
+    useBarCodeDetectorIfSupported: true,
+  };
+
+  html5Qr = new Html5Qrcode('reader', { verbose: false });
+
+  Html5Qrcode.getCameras().then(cameras => {
+    if (!cameras || cameras.length === 0) {
+      setStatus('No camera found on this device.');
+      return;
+    }
+    // Prefer back/rear/environment camera
+    const rear = cameras.find(c => /back|rear|environment/i.test(c.label)) || cameras[cameras.length - 1];
+
+    html5Qr.start(
+      { deviceId: { exact: rear.id } },
+      config,
+      onScanSuccess,
+      (err) => { /* ignore frequent decode errors */ }
+    ).then(() => {
+      setStatus('Point camera at barcode or QR code…');
+      // Grab the video track for torch
+      const video = document.querySelector('#reader video');
+      if (video && video.srcObject) {
+        currentTrack = video.srcObject.getVideoTracks()[0];
+      }
+    }).catch(err => {
+      if (/permission/i.test(String(err))) {
+        setStatus('Camera permission denied. Please allow access.');
+      } else {
+        // Try with environment constraint as fallback
+        html5Qr.start(
+          { facingMode: 'environment' },
+          config,
+          onScanSuccess,
+          () => {}
+        ).then(() => {
+          setStatus('Point camera at barcode or QR code…');
+          const video = document.querySelector('#reader video');
+          if (video && video.srcObject) currentTrack = video.srcObject.getVideoTracks()[0];
+        }).catch(e2 => {
+          setStatus('Could not start camera: ' + e2);
+        });
+      }
+    });
+  }).catch(err => {
+    setStatus('Camera error: ' + (err.message || err));
+  });
+}
+
+function stopHtml5Qr() {
+  if (html5Qr) {
+    html5Qr.stop().catch(()=>{});
+    html5Qr.clear().catch(()=>{});
+    html5Qr = null;
+  }
+}
+
+function onScanSuccess(decodedText) {
+  const id = parseShipmentId(decodedText);
+  closeScanner();
+
+  // Fill the ID field
+  document.getElementById('shipment-id').value = id;
+  if (decodedText !== id) {
+    document.getElementById('raw-strip').style.display = 'block';
+    document.getElementById('raw-value').textContent = decodedText.slice(0, 80) + (decodedText.length > 80 ? '…' : '');
+  }
+  onIdChange();
+
+  // Visual feedback on scan button
+  const btn = document.getElementById('scan-btn');
+  btn.classList.add('scanned');
+  document.getElementById('scan-icon').textContent  = '✓';
+  document.getElementById('scan-title').textContent = 'SCANNED!';
+  document.getElementById('scan-sub').textContent   = 'ID: …' + id.slice(-10);
+  showToast('Scanned: …' + id.slice(-8), 'success');
+  setTimeout(() => {
+    btn.classList.remove('scanned');
+    document.getElementById('scan-icon').textContent  = '▦';
+    document.getElementById('scan-title').textContent = 'SCAN BARCODE';
+    document.getElementById('scan-sub').textContent   = 'Tap to open camera scanner';
+  }, 3000);
+}
+
+async function toggleTorch() {
+  if (!currentTrack) {
+    // Try to grab it again
+    const video = document.querySelector('#reader video');
+    if (video && video.srcObject) currentTrack = video.srcObject.getVideoTracks()[0];
+  }
+  if (!currentTrack) { showToast('Torch not available', 'error'); return; }
+  try {
+    torchOn = !torchOn;
+    await currentTrack.applyConstraints({ advanced: [{ torch: torchOn }] });
+    const btn = document.getElementById('torch-btn');
+    btn.classList.toggle('on', torchOn);
+    btn.textContent = torchOn ? '⚡ ON' : '⚡ TORCH';
+  } catch {
+    showToast('Torch not supported on this device', 'info');
+    torchOn = false;
+  }
+}
+
+// ─── Pack ─────────────────────────────────────────────────────────────────────
+async function handlePack() {
+  const id = document.getElementById('shipment-id').value.trim();
+  if (!id) { showToast('Shipment ID is required.', 'error'); return; }
+  const dp  = document.getElementById('dp-select').value;
+  const now = new Date();
+  const packedDate   = fmtDate(now);
+  const handoverTime = fmtTime(now);
+
+  document.getElementById('pack-btn').disabled     = true;
+  document.getElementById('pack-btn').textContent  = 'UPDATING SHEET…';
+
+  await postToSheet({ action:'pack', shipmentId:id, dp, packedDate, handoverTime });
+
+  addLogEntry({ shipmentId:id, dp, status:'Packed', packedDate, time:handoverTime });
+  showToast('Packed: …' + id.slice(-8), 'success');
+
+  document.getElementById('pack-btn').textContent = '📦  MARK AS PACKED';
+  clearId();
+}
+
+// ─── Pick / POD ───────────────────────────────────────────────────────────────
+function updateQueueCount() {
+  const ids = document.getElementById('pod-ids').value.split(/[\n,]+/).filter(s=>s.trim());
+  const el  = document.getElementById('queue-count');
+  if (ids.length) { el.style.display='block'; el.textContent = ids.length + ' shipment(s) queued'; }
+  else              el.style.display='none';
+}
+
+function onPodFile(e) {
+  podFileObj = e.target.files[0];
+  if (!podFileObj) return;
+  const zone = document.getElementById('upload-zone');
+  zone.classList.add('has-file');
+  document.getElementById('upload-icon').textContent = '✅';
+  document.getElementById('upload-text').textContent = podFileObj.name;
+  document.getElementById('upload-text').className   = 'upload-name';
+
+  const wrap = document.getElementById('pod-preview-wrap');
+  wrap.innerHTML = '';
+  wrap.style.display = 'block';
+  if (podFileObj.type.startsWith('image/')) {
+    const img = document.createElement('img');
+    img.src   = URL.createObjectURL(podFileObj);
+    img.style.cssText = 'width:100%;max-height:180px;object-fit:cover;display:block;border-radius:10px;border:1px solid rgba(0,150,136,0.2);margin-bottom:14px;';
+    wrap.appendChild(img);
+  } else {
+    wrap.innerHTML = `<div class="pod-file-badge">📄 ${podFileObj.name}</div>`;
+  }
+}
+
+async function handlePick() {
+  const raw = document.getElementById('pod-ids').value;
+  const ids = raw.split(/[\n,]+/).map(s=>s.trim()).filter(Boolean);
+  if (!ids.length)  { showToast('Enter at least one Shipment ID.', 'error'); return; }
+  if (!podFileObj)  { showToast('Please upload the POD document.', 'error'); return; }
+
+  const btn = document.getElementById('pick-btn');
+  btn.disabled    = true;
+  btn.textContent = 'UPDATING SHEET…';
+
+  const now      = new Date();
+  const pickTime = fmtFull(now);
+
+  for (const id of ids) {
+    await postToSheet({ action:'pick', shipmentId:id, pickTime });
+    addLogEntry({ shipmentId:id, dp:'—', status:'Picked', packedDate:'—', time:fmtTime(now) });
+  }
+
+  showToast(ids.length + ' shipment' + (ids.length>1?'s':'') + ' marked Picked', 'success');
+  btn.disabled    = false;
+  btn.textContent = '✅  MARK AS PICKED';
+
+  document.getElementById('pod-ids').value = '';
+  document.getElementById('queue-count').style.display = 'none';
+  podFileObj = null;
+  document.getElementById('upload-zone').classList.remove('has-file');
+  document.getElementById('upload-icon').textContent = '📎';
+  document.getElementById('upload-text').textContent = 'Tap to upload POD image or PDF';
+  document.getElementById('upload-text').className   = 'upload-hint';
+  document.getElementById('pod-preview-wrap').style.display = 'none';
+  document.getElementById('pod-file').value = '';
+}
+
+// ─── Log ──────────────────────────────────────────────────────────────────────
+function addLogEntry(entry) {
+  logEntries.unshift(entry);
+  renderLog();
+}
+
+function renderLog() {
+  const c = document.getElementById('log-container');
+  if (!logEntries.length) {
+    c.innerHTML = `<div class="log-empty"><div class="log-empty-icon">📋</div>No activity this session.</div>`;
+    return;
+  }
+  const isPacked = s => s === 'Packed';
+  c.innerHTML = `<div class="log-header">${logEntries.length} RECORD${logEntries.length!==1?'S':''} THIS SESSION</div>` +
+    logEntries.map(e => `
+      <div class="log-row">
+        <div class="log-left">
+          <span class="log-badge ${isPacked(e.status)?'packed':'picked'}">${e.status.toUpperCase()}</span>
+          <div class="log-id"><span>ID </span>${e.shipmentId}</div>
+          <div class="log-meta">${e.dp} · ${e.packedDate} · ${e.time}</div>
+        </div>
+        <div class="log-icon ${isPacked(e.status)?'packed':'picked'}">${isPacked(e.status)?'📦':'✅'}</div>
+      </div>`
+    ).join('');
+}
+</script>
+</body>
+</html>
